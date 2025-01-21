@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 import mathutils
 
 def create_ball(location):
@@ -9,9 +10,9 @@ def create_edge(start, end):
     obj = bpy.data.objects.new(name="Edge", object_data=mesh)
     bpy.context.collection.objects.link(obj)
     bm = bmesh.new()
-    bm.verts.new(start)
-    bm.verts.new(end)
-    bm.edges.new(bm.verts)
+    v1 = bm.verts.new(start)
+    v2 = bm.verts.new(end)
+    bm.edges.new((v1, v2))
     bm.to_mesh(mesh)
     bm.free()
 
