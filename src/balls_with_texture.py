@@ -130,7 +130,7 @@ def create_energy_edge(start, end):
 
 def setup_scene():
     """Configure scene settings"""
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
     bpy.context.scene.eevee.taa_render_samples = 64
     bpy.context.scene.frame_end = 250
     
@@ -174,5 +174,18 @@ create_energy_edge(positions[1], positions[3])
 # Final scene setup
 setup_scene()
 bpy.ops.object.select_all(action='DESELECT')
+
+def ensure_camera():
+    cam = None
+    for obj in bpy.data.objects:
+        if obj.type == 'CAMERA':
+            cam = obj
+            break
+    if not cam:
+        bpy.ops.object.camera_add(location=(0, -10, 5), rotation=(1.1, 0, 0))
+        cam = bpy.context.active_object
+    bpy.context.scene.camera = cam
+
+ensure_camera()
 
 print("Quantum entanglement system created! Press F12 to render.")
