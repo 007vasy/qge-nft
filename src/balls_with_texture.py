@@ -133,17 +133,22 @@ def setup_scene():
     bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
     bpy.context.scene.eevee.taa_render_samples = 64
     bpy.context.scene.frame_end = 250
-    
+
     # Add subtle volumetric lighting
     bpy.context.scene.world.use_nodes = True
     nodes = bpy.context.scene.world.node_tree.nodes
-    nodes.new(type='ShaderNodeVolumePrincipled')
-    nodes.new(type='ShaderNodeVolumeAbsorption')
-    output = nodes.get('World Output')
-    
     links = bpy.context.scene.world.node_tree.links
-    links.new(nodes['Principled Volume'].outputs[0], output.inputs['Volume'])
 
+    # Create or fetch the volume nodes
+    vol_principled = nodes.get('Principled Volume') or nodes.new(type='ShaderNodeVolumePrincipled')
+    vol_absorption = nodes.get('Volume Absorption') or nodes.new(type='ShaderNodeVolumeAbsorption')
+    output = nodes.get('World Output')
+
+    # Reduce the volume density
+    vol_absorption.inputs['Density'].default_value = 0.02
+
+    # Link them up
+    links.new(vol_principled.outputs[0], output.inputs['Volume'])
 # ----------------------------
 # MAIN EXECUTION
 # ----------------------------
@@ -184,8 +189,41 @@ def ensure_camera():
     if not cam:
         bpy.ops.object.camera_add(location=(0, -10, 5), rotation=(1.1, 0, 0))
         cam = bpy.context.active_object
+    # Move camera or rotate if objects remain off screen
     bpy.context.scene.camera = cam
+
+def ensure_light():
+    for obj in bpy.data.objects:
+        if obj.type == 'LIGHT':
+            return
+    bpy.ops.object.light_add(type='AREA', location=(5, -5, 5))
+    light = bpy.context.active_object
+    light.data.energy = 3000
+    
+ensure_light()
+
 
 ensure_camera()
 
-print("Quantum entanglement system created! Press F12 to render.")
+# Enable compositing so the Stable Diffusion node affects final render
+bpy.context.scene.render.use_compositing = True
+bpy.context.scene.use_nodes = True
+
+tree = bpy.context.scene.node_tree
+links = tree.links
+render_node = tree.nodes.get('Render Layers') or tree.nodes.new(type='CompositorNodeRLayers')
+sd_node = next((n for n in tree.nodes if n.bl_idname == 'CompositorNodeStableDiffusion'), None)
+comp_node = tree.nodes.get('Composite') or tree.nodes.new(type='CompositorNodeComposite')
+
+render_node.location = (0, 0)
+if sd_node:
+    sd_node.location = (200, 0)
+comp_node.location = (400, 0)
+
+if sd_node:
+    links.new(render_node.outputs['Image'], sd_node.inputs['Image'])
+    links.new(sd_node.outputs['Image'], comp_node.inputs['Image'])
+else:
+    links.new(render_node.outputs['Image'], comp_node.inputs['Image'])
+
+print("Quantum entanglement system created! Press F12 to render with compositing.")
