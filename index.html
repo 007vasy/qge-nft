@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quantum Entanglement 3D Visualization</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #3d-graph { width: 100vw; height: 100vh; }
+        /* Ensure dat.GUI panel floats above the 3D canvas */
+        .dg {
+            position: absolute !important;
+            top: 10px !important;
+            right: 10px !important;
+            z-index: 1000 !important;
+        }
+    </style>
+    <script src="//cdn.jsdelivr.net/npm/3d-force-graph"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+</head>
+<body>
+    <div id="3d-graph"></div>
+    <script>
+      // Simulation parameters
+      const params = {
+        particleCount: 50,
+        entangleProb: 0.01,
+        minLife: 3000,
+        maxLife: 7000,
+        linkDistance: 80,
+        repulsionStrength: -50
+      };
+
+      // Initialize nodes and links
+      const nodes = Array.from({ length: params.particleCount }, (_, i) => ({ id: i }));
+      const links = [];
+
+      // Create 3D force graph
+      const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
+        .graphData({ nodes, links })
+        .enableNodeDrag(false)
+        .nodeAutoColorBy('id')
+        .nodeOpacity(0.9)
+        .linkOpacity(0.6)
+        .linkCurvature(0.2)
+        .linkWidth(link => 1 + 3 * (link.life / link.maxLife))
+        .linkColor(link => `rgba(0,150,255,${(link.life / link.maxLife).toFixed(2)})`)
+        .d3Force('charge', d3.forceManyBody().strength(params.repulsionStrength))
+        .d3Force('link', d3.forceLink().distance(params.linkDistance));
+
+      // GUI controls using dat.GUI
+      const gui = new dat.GUI();
+      gui.add(params, 'particleCount', 10, 200, 1).name('Particles');
+      gui.add(params, 'entangleProb', 0, 0.1).name('Entangle Prob');
+      gui.add(params, 'minLife', 1000, 10000).name('Min Life (ms)');
+      gui.add(params, 'maxLife', 1000, 10000).name('Max Life (ms)');
+      gui.add(params, 'linkDistance', 10, 200).onChange(val => Graph.d3Force('link').distance(val));
+      gui.add(params, 'repulsionStrength', -200, -10).name('Repulsion').onChange(val => Graph.d3Force('charge').strength(val));
+
+      const stepMs = 100;
+
+      // Simulation loop
+      setInterval(() => {
+        // Adjust node count
+        if (nodes.length < params.particleCount) {
+          const id = nodes.length;
+          nodes.push({ id });
+        } else if (nodes.length > params.particleCount) {
+          nodes.splice(params.particleCount).forEach(node => {
+            for (let i = links.length - 1; i >= 0; i--) {
+              if (links[i].source.id === node.id || links[i].target.id === node.id) {
+                links.splice(i, 1);
+              }
+            }
+          });
+        }
+
+        // Create entanglements
+        nodes.forEach(node => {
+          if (Math.random() < params.entangleProb) {
+            const target = nodes[Math.floor(Math.random() * nodes.length)];
+            if (target !== node) {
+              const exists = links.some(l =>
+                (l.source.id === node.id && l.target.id === target.id) ||
+                (l.source.id === target.id && l.target.id === node.id)
+              );
+              if (!exists) {
+                const life = params.minLife + Math.random() * (params.maxLife - params.minLife);
+                links.push({ source: node, target: target, life, maxLife: life });
+              }
+            }
+          }
+        });
+
+        // Decay entanglements
+        for (let i = links.length - 1; i >= 0; i--) {
+          links[i].life -= stepMs;
+          if (links[i].life <= 0) links.splice(i, 1);
+        }
+
+        Graph.graphData({ nodes, links });
+      }, stepMs);
+    </script>
+</body>
+</html>
