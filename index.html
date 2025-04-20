@@ -30,7 +30,9 @@
         maxLife: 7000,
         linkDistance: 80,
         repulsionStrength: -50,
-        sphereRadius: 200
+      sphereRadius: 200,
+      bloomDuration: 1000,    // ms bloom on connect
+      bloomFactor: 3          // size multiplier
       };
 
       // Helper: random point on sphere surface
@@ -48,13 +50,15 @@
       // Initialize nodes and links on sphere surface
       const nodes = Array.from({ length: params.particleCount }, (_, i) => {
         const p = randomPointOnSphere(params.sphereRadius);
-        return { id: i, x: p.x, y: p.y, z: p.z };
+        return { id: i, x: p.x, y: p.y, z: p.z, bloomTime: 0 };
       });
       const links = [];
 
       // Create 3D force graph
       const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
         .graphData({ nodes, links })
+        // size nodes based on bloomTime
+        .nodeVal(node => 1 + params.bloomFactor * (node.bloomTime / params.bloomDuration))
         .enableNodeDrag(false)
         .nodeAutoColorBy('id')
         .nodeOpacity(0.9)
@@ -88,6 +92,8 @@
 
       // Simulation loop
       setInterval(() => {
+        // decay bloom timers
+        nodes.forEach(n => n.bloomTime = Math.max(0, n.bloomTime - stepMs));
         // Adjust node count
         if (nodes.length < params.particleCount) {
           const id = nodes.length;
@@ -115,6 +121,9 @@
               if (!exists) {
                 const life = params.minLife + Math.random() * (params.maxLife - params.minLife);
                 links.push({ source: node, target: target, life, maxLife: life });
+                // trigger bloom on both nodes
+                node.bloomTime = params.bloomDuration;
+                target.bloomTime = params.bloomDuration;
               }
             }
           }
